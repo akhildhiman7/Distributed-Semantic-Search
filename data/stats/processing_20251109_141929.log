@@ -1,0 +1,46 @@
+2025-11-09 14:19:29,199 - __main__ - INFO - Starting OPTIMIZED arXiv data processing pipeline
+2025-11-09 14:19:29,199 - __main__ - INFO - Hardware: 8 CPU cores available
+2025-11-09 14:19:29,199 - __main__ - INFO - Configuration: {'MIN_ABSTRACT_LENGTH': 100, 'MIN_TITLE_LENGTH': 10, 'MAX_ABSTRACT_LENGTH': 10000, 'MAX_TITLE_LENGTH': 512, 'STRIP_HTML': True, 'STRIP_LATEX': True, 'NORMALIZE_WHITESPACE': True, 'REMOVE_URLS': True, 'DEDUP_HASH_CHARS': 200, 'TEXT_SEPARATOR': '. ', 'PARTITION_SIZE_MB': 150, 'COMPRESSION': 'snappy', 'SAMPLE_SIZE': 10000, 'SAMPLE_RANDOM_SEED': 42, 'INCLUDE_CATEGORIES': ['cs.LG', 'cs.AI', 'cs.CL', 'cs.CV', 'cs.IR', 'cs.NE', 'stat.ML'], 'BATCH_SIZE': 5000, 'LOG_INTERVAL': 50000, 'USE_MULTIPROCESSING': True, 'ENABLE_VALIDATION': True, 'MAX_ERRORS_PER_BATCH': 100, 'to_dict': <classmethod(<function ProcessingConfig.to_dict at 0x112127e20>)>}
+2025-11-09 14:19:29,199 - __main__ - INFO - Initializing processor with 8 worker processes
+2025-11-09 14:19:29,199 - __main__ - INFO - Phase 1: Processing and partitioning data (multiprocessing enabled)...
+2025-11-09 14:19:29,199 - __main__ - INFO - Processing with 8 cores
+2025-11-09 14:19:29,445 - __main__ - INFO - Processed 40,000 records | Kept: 378 | Skipped: 39,622 | Duplicates: 0 | Speed: 40000 records/batch
+2025-11-09 14:19:31,582 - __main__ - INFO - Processed 440,000 records | Kept: 11,978 | Skipped: 428,020 | Duplicates: 2 | Speed: 40000 records/batch
+2025-11-09 14:19:34,744 - __main__ - INFO - Processed 840,000 records | Kept: 39,964 | Skipped: 799,997 | Duplicates: 39 | Speed: 40000 records/batch
+2025-11-09 14:19:38,461 - __main__ - INFO - Written partition 0000: 69,453 records, 81.23 MB
+2025-11-09 14:19:41,342 - __main__ - INFO - Processed 1,240,000 records | Kept: 111,450 | Skipped: 1,128,500 | Duplicates: 50 | Speed: 40000 records/batch
+2025-11-09 14:19:44,255 - __main__ - INFO - Written partition 0001: 64,144 records, 81.23 MB
+2025-11-09 14:19:49,221 - __main__ - INFO - Written partition 0002: 61,807 records, 81.35 MB
+2025-11-09 14:19:51,200 - __main__ - INFO - Processed 1,640,000 records | Kept: 218,437 | Skipped: 1,421,484 | Duplicates: 79 | Speed: 40000 records/batch
+2025-11-09 14:19:55,682 - __main__ - INFO - Written partition 0003: 60,240 records, 81.30 MB
+2025-11-09 14:20:00,711 - __main__ - INFO - Written partition 0004: 58,910 records, 81.43 MB
+2025-11-09 14:20:03,012 - __main__ - INFO - Processed 2,040,000 records | Kept: 346,754 | Skipped: 1,693,151 | Duplicates: 95 | Speed: 40000 records/batch
+2025-11-09 14:20:05,843 - __main__ - INFO - Written partition 0005: 58,070 records, 81.45 MB
+2025-11-09 14:20:11,140 - __main__ - INFO - Written partition 0006: 57,151 records, 81.30 MB
+2025-11-09 14:20:16,413 - __main__ - INFO - Processed 2,440,000 records | Kept: 497,795 | Skipped: 1,942,093 | Duplicates: 112 | Speed: 40000 records/batch
+2025-11-09 14:20:16,943 - __main__ - INFO - Written partition 0007: 56,000 records, 82.01 MB
+2025-11-09 14:20:19,349 - __main__ - INFO - Processed 2,840,000 records | Kept: 510,163 | Skipped: 2,329,714 | Duplicates: 123 | Speed: 40000 records/batch
+2025-11-09 14:20:19,776 - __main__ - INFO - Written partition 0008: 24,428 records, 34.69 MB
+2025-11-09 14:20:19,788 - __main__ - INFO - Created 9 partitions in 50.6 seconds
+2025-11-09 14:20:19,788 - __main__ - INFO - Processing speed: 56897 records/sec
+2025-11-09 14:20:19,788 - __main__ - INFO - Phase 2: Creating sample dataset...
+2025-11-09 14:20:19,788 - __main__ - INFO - Creating sample of 10000 records...
+2025-11-09 14:20:23,001 - __main__ - INFO - Sample created: 10,000 records -> /Users/akhil/Documents/workplace/Distributed Semantic Search/Distributed-Semantic-Search/data/sample/sample.parquet
+2025-11-09 14:20:23,180 - __main__ - INFO - Phase 3: Saving statistics...
+2025-11-09 14:20:23,181 - __main__ - INFO - Statistics saved to: /Users/akhil/Documents/workplace/Distributed Semantic Search/Distributed-Semantic-Search/data/stats/profile_20251109_142023.json
+2025-11-09 14:20:23,181 - __main__ - INFO - 
+============================================================
+2025-11-09 14:20:23,181 - __main__ - INFO - PROCESSING SUMMARY
+2025-11-09 14:20:23,181 - __main__ - INFO - ============================================================
+2025-11-09 14:20:23,181 - __main__ - INFO - Total records read:      2,878,337
+2025-11-09 14:20:23,181 - __main__ - INFO - Successfully processed:  510,203
+2025-11-09 14:20:23,181 - __main__ - INFO - Skipped:                 2,368,010
+2025-11-09 14:20:23,181 - __main__ - INFO -   - Duplicates:          124
+2025-11-09 14:20:23,181 - __main__ - INFO - Errors:                  0
+2025-11-09 14:20:23,181 - __main__ - INFO - Total size:              0.61 GB
+2025-11-09 14:20:23,181 - __main__ - INFO - Avg title length:        76.8 chars
+2025-11-09 14:20:23,181 - __main__ - INFO - Avg abstract length:     1204.3 chars
+2025-11-09 14:20:23,181 - __main__ - INFO - Avg combined text:       1284.1 chars
+2025-11-09 14:20:23,181 - __main__ - INFO - ============================================================
+
+2025-11-09 14:20:23,181 - __main__ - INFO - ✓ Pipeline completed successfully!
