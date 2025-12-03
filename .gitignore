@@ -1,0 +1,27 @@
+# OS noise
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+
+# Large raw/input data
+arxiv-metadata-oai-snapshot.json
+
+# Generated datasets
+data/clean/
+data/sample/
+
+# Embedding artifacts and caches
+embed/embeddings/
+embed/model_cache/
+embed/reports/
+
+# Logs and checkpoints
+embed/reports/*.log
+data/stats/processing_*.log
