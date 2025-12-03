@@ -1,0 +1,6 @@
+pymilvus
+python-dotenv
+pandas
+pyarrow
+numpy
+tqdm

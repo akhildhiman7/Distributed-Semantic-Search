@@ -1,0 +1,23 @@
+# === Data shards (embeddings + metadata) ===
+embed/embeddings/
+embed/metadata/
+
+# === Milvus / etcd / MinIO volumes ===
+infra/volumes/
+
+# === Python junk ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+
+# Virtual envs
+.venv/
+venv/
+
+# Local env config
+.env
+
+# macOS junk
+.DS_Store
