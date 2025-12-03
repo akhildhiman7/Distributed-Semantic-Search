@@ -1,27 +1,23 @@
-# OS noise
-.DS_Store
+# === Data shards (embeddings + metadata) ===
+embed/embeddings/
+embed/metadata/
 
-# Python
+# === Milvus / etcd / MinIO volumes ===
+infra/volumes/
+
+# === Python junk ===
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.so
-*.egg-info/
+*.log
+
+# Virtual envs
 .venv/
+venv/
 
-# Large raw/input data
-arxiv-metadata-oai-snapshot.json
+# Local env config
+.env
 
-# Generated datasets
-data/clean/
-data/sample/
-
-# Embedding artifacts and caches
-embed/embeddings/
-embed/model_cache/
-embed/reports/
-
-# Logs and checkpoints
-embed/reports/*.log
-data/stats/processing_*.log
+# macOS junk
+.DS_Store
