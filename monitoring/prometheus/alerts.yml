@@ -1,0 +1,56 @@
+groups:
+  - name: api_alerts
+    rules:
+      - alert: ApiHighErrorRate
+        expr: |
+          sum(rate(search_requests_total{status="error"}[5m]))
+            /
+          sum(rate(search_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API error rate high"
+          description: "Error rate over 5% for >2m."
+
+      - alert: ApiHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(search_latency_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency high"
+          description: "p95 latency above 1s for >2m."
+
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API down"
+          description: "Prometheus cannot reach API /metrics."
+
+  - name: milvus_alerts
+    rules:
+      - alert: MilvusDown
+        expr: up{job="milvus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Milvus metrics endpoint down"
+          description: "Prometheus cannot reach Milvus metrics."
+
+      - alert: CollectionEntityDrop
+        expr: collection_entities_total < 500000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collection entity count low"
+          description: "Indexed entities dropped below expected threshold."

@@ -1,0 +1,26 @@
+# Kafka Configuration for Milvus
+kafka:
+  brokerList: kafka:9092
+  saslUsername:
+  saslPassword:
+  saslMechanisms:
+  securityProtocol:
+  ssl:
+    enabled: false
+  readTimeout: 30
+
+  consumer:
+    readTimeout: 30
+    groupID: milvus-consumer
+    sessionTimeout: 60000
+
+# Common settings
+common:
+  chanNamePrefix:
+    cluster: by-dev
+    rootCoordTimeTick: rootcoord-timetick
+    rootCoordStatistics: rootcoord-statistics
+    rootCoordDml: rootcoord-dml
+    search: search
+    searchResult: searchResult
+    queryTimeTick: queryTimeTick

@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "uid": "milvus-metrics",
+  "title": "Milvus Metrics",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Milvus Up",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "avg(up{job=\"milvus\"})" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "graph",
+      "title": "Queries/sec (if available)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(milvus_query_total[1m]))",
+          "legendFormat": "queries"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "Insertions/sec (if available)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(milvus_insert_total[1m]))",
+          "legendFormat": "inserts"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "graph",
+      "title": "System Memory (if exported)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(milvus_system_memory_bytes)",
+          "legendFormat": "memory"
+        }
+      ]
+    }
+  ],
+  "annotations": { "list": [] }
+}

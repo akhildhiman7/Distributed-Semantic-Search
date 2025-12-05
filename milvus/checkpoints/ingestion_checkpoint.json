@@ -1,0 +1,14 @@
+{
+  "completed_partitions": [
+    "part-0000",
+    "part-0001",
+    "part-0002",
+    "part-0003",
+    "part-0004",
+    "part-0005",
+    "part-0006",
+    "part-0007",
+    "part-0008"
+  ],
+  "total_inserted": 607203
+}

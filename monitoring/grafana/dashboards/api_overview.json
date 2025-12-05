@@ -1,0 +1,87 @@
+{
+  "id": null,
+  "uid": "api-overview",
+  "title": "API Overview",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "editable": true,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "graph",
+      "title": "Search Requests /s",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(search_requests_total[1m]))" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "graph",
+      "title": "Error Rate %",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(search_requests_total{status=\"error\"}[5m])) / sum(rate(search_requests_total[5m]))"
+        }
+      ],
+      "yaxes": [
+        { "format": "percent", "logBase": 1 },
+        { "format": "short", "logBase": 1 }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "Latency p50/p95/p99 (s)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.50, sum(rate(search_latency_seconds_bucket[5m])) by (le))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(search_latency_seconds_bucket[5m])) by (le))"
+        },
+        {
+          "refId": "C",
+          "legendFormat": "p99",
+          "expr": "histogram_quantile(0.99, sum(rate(search_latency_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active Requests",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "max(active_requests)" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Collection Entities",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "max(collection_entities_total)" }
+      ]
+    }
+  ]
+}

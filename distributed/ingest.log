@@ -1,0 +1,10 @@
+2025-12-05 12:02:53,603 - INFO - Connecting to distributed cluster on port 19531...
+2025-12-05 12:02:53,658 - INFO - ✓ Connected to distributed cluster
+2025-12-05 12:02:53,658 - ERROR - No embedding files found in embed/embeddings/full
+============================================================
+DISTRIBUTED MILVUS INGESTION
+============================================================
+
+✅ All data ingested successfully!
+
+Next: Run distributed/test_distributed.py to test performance

@@ -1,0 +1,19 @@
+# FastAPI and dependencies
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-multipart==0.0.20
+
+# Milvus client (already installed from Member 3)
+pymilvus==2.6.4
+
+# Sentence transformers (already installed from Member 2)
+sentence-transformers==3.3.1
+torch>=2.0.0
+
+# Additional dependencies
+python-dotenv==1.2.1
+orjson==3.11.4
+
+# Optional: Production server
+gunicorn==23.0.0

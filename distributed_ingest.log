@@ -1,0 +1,11 @@
+2025-12-05 14:09:51,086 - INFO - Connecting to distributed cluster on port 19531...
+2025-12-05 14:11:15,046 - INFO - ✓ Connected to distributed cluster
+2025-12-05 14:11:15,056 - INFO - Found 9 embedding files
+2025-12-05 14:11:15,056 - INFO - 
+Processing partition: part-0000
+2025-12-05 14:11:15,463 - INFO -   Vectors: 69,453
+2025-12-05 14:11:15,463 - INFO -   Metadata rows: 69,453
+============================================================
+DISTRIBUTED MILVUS INGESTION
+============================================================
+  Ingesting part-0000:   0%|          | 0/69453 [00:00<?, ?it/s]

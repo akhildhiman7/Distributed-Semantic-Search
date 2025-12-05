@@ -1,0 +1,59 @@
+{
+  "id": null,
+  "uid": "search-performance",
+  "title": "Search Performance",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "graph",
+      "title": "Search QPS",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(search_requests_total[1m]))" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "graph",
+      "title": "Latency Distribution (s)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(search_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum(rate(search_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p90" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(search_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "Errors by Type",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(search_requests_total{status=\"error\"}[5m]))" },
+        { "refId": "B", "expr": "sum(rate(search_requests_total{status=\"success\"}[5m]))" }
+      ],
+      "legend": { "show": true }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Current Error Rate %",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(search_requests_total{status=\"error\"}[5m])) / sum(rate(search_requests_total[5m]))"
+        }
+      ]
+    }
+  ]
+}

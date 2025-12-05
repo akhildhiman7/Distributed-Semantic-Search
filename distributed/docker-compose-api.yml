@@ -1,0 +1,130 @@
+version: "3.8"
+
+# Distributed API Layer with NGINX Load Balancer
+# This creates 3 API instances with round-robin load balancing
+
+services:
+  # ============================================
+  # NGINX Load Balancer
+  # ============================================
+
+  nginx-lb:
+    container_name: api-load-balancer
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+      - "8080:8080" # Stats/monitoring endpoint
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-1
+      - api-2
+      - api-3
+    networks:
+      - api-network
+      - milvus
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================
+  # API Instances (3 replicas)
+  # ============================================
+
+  api-1:
+    container_name: api-instance-1
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    environment:
+      - MILVUS_HOST=milvus-proxy-1
+      - MILVUS_PORT=19530
+      - INSTANCE_ID=api-1
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../api:/app
+      - ../data:/data:ro
+    networks:
+      - api-network
+      - milvus
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api-2:
+    container_name: api-instance-2
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    environment:
+      - MILVUS_HOST=milvus-proxy-2
+      - MILVUS_PORT=19530
+      - INSTANCE_ID=api-2
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../api:/app
+      - ../data:/data:ro
+    networks:
+      - api-network
+      - milvus
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api-3:
+    container_name: api-instance-3
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    environment:
+      - MILVUS_HOST=milvus-proxy-1
+      - MILVUS_PORT=19530
+      - INSTANCE_ID=api-3
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../api:/app
+      - ../data:/data:ro
+    networks:
+      - api-network
+      - milvus
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  api-network:
+    driver: bridge
+  milvus:
+    external: true
+    name: milvus_milvus

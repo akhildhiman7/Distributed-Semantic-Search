@@ -1,0 +1,140 @@
+version: "3.8"
+
+# Optimized distributed setup for 8GB RAM M2 Air
+# Provides load-balanced APIs + optimized Milvus
+
+services:
+  # ============================================
+  # Milvus Standalone (Optimized)
+  # ============================================
+
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=2147483648 # 2GB limit
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - milvus
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE-2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - milvus
+
+  standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.3.3
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      # Memory optimizations
+      QUERY_NODE_MEMORY_LOW_WATER_LEVEL: 0.7
+      QUERY_NODE_MEMORY_HIGH_WATER_LEVEL: 0.85
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
+    deploy:
+      resources:
+        limits:
+          memory: 3G # Increased for HNSW index
+    networks:
+      - milvus
+
+  # ============================================
+  # Load-Balanced API Layer
+  # ============================================
+
+  nginx:
+    container_name: api-loadbalancer
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+      - "8080:8080"
+    volumes:
+      - ./nginx-light.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-1
+      - api-2
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - milvus
+
+  api-1:
+    container_name: api-instance-1
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    environment:
+      - MILVUS_HOST=standalone
+      - MILVUS_PORT=19530
+      - INSTANCE_ID=api-1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api-2:
+    container_name: api-instance-2
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    environment:
+      - MILVUS_HOST=standalone
+      - MILVUS_PORT=19530
+      - INSTANCE_ID=api-2
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  etcd_data:
+  minio_data:
+  milvus_data:
+
+networks:
+  milvus:
+    driver: bridge

@@ -1,0 +1,389 @@
+version: "3.8"
+
+# Distributed Milvus Cluster Configuration
+# This replaces the standalone milvus setup with a full distributed cluster
+
+services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - milvus
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:latest
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - milvus
+
+  # Message Queue - Kafka (better ARM64 support than Pulsar)
+  zookeeper:
+    container_name: milvus-zookeeper
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper
+    networks:
+      - milvus
+
+  kafka:
+    container_name: milvus-kafka
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Increase message size to satisfy Milvus producer defaults
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      KAFKA_FETCH_MESSAGE_MAX_BYTES: 10485760
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - milvus
+
+  # ============================================
+  # Milvus Distributed Components
+  # ============================================
+
+  rootcoord:
+    container_name: milvus-rootcoord
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "rootcoord"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    volumes:
+      - ./milvus.yaml:/milvus/configs/milvus.yaml
+    depends_on:
+      - etcd
+      - minio
+      - kafka
+    networks:
+      - milvus
+
+  datacoord:
+    container_name: milvus-datacoord
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "datacoord"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    volumes:
+      - ./milvus.yaml:/milvus/configs/milvus.yaml
+    depends_on:
+      - etcd
+      - minio
+      - rootcoord
+    networks:
+      - milvus
+
+  querycoord:
+    container_name: milvus-querycoord
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "querycoord"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    volumes:
+      - ./milvus.yaml:/milvus/configs/milvus.yaml
+    depends_on:
+      - etcd
+      - minio
+      - rootcoord
+    networks:
+      - milvus
+
+  indexcoord:
+    container_name: milvus-indexcoord
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "indexcoord"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    volumes:
+      - ./milvus.yaml:/milvus/configs/milvus.yaml
+    depends_on:
+      - etcd
+      - minio
+      - rootcoord
+    networks:
+      - milvus
+
+  # ============================================
+  # Query Nodes (Parallel Search Execution)
+  # ============================================
+
+  querynode-1:
+    container_name: milvus-querynode-1
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "querynode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based storage (reduces RAM usage)
+      QUERY_NODE_MMAP_ENABLED: "true"
+      QUERY_NODE_CACHE_SIZE: 536870912 # 512MB cache
+    depends_on:
+      - querycoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  querynode-2:
+    container_name: milvus-querynode-2
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "querynode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based storage (reduces RAM usage)
+      QUERY_NODE_MMAP_ENABLED: "true"
+      QUERY_NODE_CACHE_SIZE: 536870912 # 512MB cache
+    depends_on:
+      - querycoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  querynode-3:
+    container_name: milvus-querynode-3
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "querynode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based storage (reduces RAM usage)
+      QUERY_NODE_MMAP_ENABLED: "true"
+      QUERY_NODE_CACHE_SIZE: 536870912 # 512MB cache
+    depends_on:
+      - querycoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  # ============================================
+  # Data Nodes (Data Storage & Indexing)
+  # ============================================
+
+  datanode-1:
+    container_name: milvus-datanode-1
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "datanode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based storage
+      DATA_NODE_MMAP_ENABLED: "true"
+    depends_on:
+      - datacoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  datanode-2:
+    container_name: milvus-datanode-2
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "datanode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based storage
+      DATA_NODE_MMAP_ENABLED: "true"
+    depends_on:
+      - datacoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  # ============================================
+  # Index Nodes (Parallel Index Building)
+  # ============================================
+
+  indexnode-1:
+    container_name: milvus-indexnode-1
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "indexnode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based indexing
+      INDEX_NODE_MMAP_ENABLED: "true"
+    depends_on:
+      - indexcoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  indexnode-2:
+    container_name: milvus-indexnode-2
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "indexnode"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+      # Enable mmap for disk-based indexing
+      INDEX_NODE_MMAP_ENABLED: "true"
+    depends_on:
+      - indexcoord
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G # Reduced from 4G with mmap
+    networks:
+      - milvus
+
+  # ============================================
+  # Proxy (Entry Point - Load Balanced)
+  # ============================================
+
+  proxy-1:
+    container_name: milvus-proxy-1
+    image: milvusdb/milvus:v2.4.8
+    command: ["milvus", "run", "proxy"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    ports:
+      - "19531:19530"
+      - "9092:9091"
+    depends_on:
+      - rootcoord
+      - querycoord
+      - datacoord
+      - indexcoord
+    networks:
+      - milvus
+
+  proxy-2:
+    container_name: milvus-proxy-2
+    image: milvusdb/milvus:v2.4.0
+    command: ["milvus", "run", "proxy"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: kafka
+      KAFKA_ADDRESS: kafka:9092
+    ports:
+      - "19532:19530"
+      - "9093:9091"
+    depends_on:
+      - rootcoord
+      - querycoord
+      - datacoord
+      - indexcoord
+    networks:
+      - milvus
+
+  # ============================================
+  # Attu (Web UI for cluster management)
+  # ============================================
+
+  attu:
+    container_name: milvus-attu
+    image: zilliz/attu:latest
+    environment:
+      MILVUS_URL: milvus-proxy-1:19530
+    ports:
+      - "3002:3000"
+    depends_on:
+      - proxy-1
+    networks:
+      - milvus
+
+volumes:
+  etcd_data:
+  minio_data:
+  zookeeper_data:
+  kafka_data:
+
+networks:
+  milvus:
+    driver: bridge
