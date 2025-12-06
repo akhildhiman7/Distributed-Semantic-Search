@@ -1,0 +1,180 @@
+{
+  "id": null,
+  "uid": "milvus-dashboard",
+  "title": "Milvus Monitoring Dashboard",
+  "tags": ["milvus"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Total QPS",
+      "id": 1,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(milvus_query_requests_total[1m]))",
+          "legendFormat": "QPS"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Query Latency (p50 / p95 / p99)",
+      "id": 2,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(milvus_query_latency_bucket[1m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(milvus_query_latency_bucket[1m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(milvus_query_latency_bucket[1m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "gridPos": { "x": 6, "y": 0, "w": 12, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Insert Rate",
+      "id": 3,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(milvus_insert_requests_total[1m])",
+          "legendFormat": "insert"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Flush Rate",
+      "id": 4,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(milvus_flush_requests_total[1m])",
+          "legendFormat": "flush"
+        }
+      ],
+      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Index Building (in progress)",
+      "id": 5,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "milvus_index_building_count",
+          "legendFormat": "index jobs"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "QueryNode CPU Usage (%)",
+      "id": 6,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "QueryNode Memory Usage",
+      "id": 7,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Milvus Process CPU",
+      "id": 8,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"milvus\"}[1m]) * 100",
+          "legendFormat": "milvus"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Milvus Process Memory",
+      "id": 9,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=\"milvus\"}",
+          "legendFormat": "RSS"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk IO (reads / writes)",
+      "id": 10,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(node_disk_reads_completed_total[1m])",
+          "legendFormat": "reads"
+        },
+        {
+          "expr": "rate(node_disk_writes_completed_total[1m])",
+          "legendFormat": "writes"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "MinIO Request Latency",
+      "id": 11,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "minio_s3_request_duration_seconds_sum / minio_s3_request_duration_seconds_count",
+          "legendFormat": "latency"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "etcd Request Latency",
+      "id": 12,
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(etcd_network_client_grpc_received_bytes_total[1m])",
+          "legendFormat": "grpc recv"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 23, "w": 12, "h": 5 }
+    }
+  ]
+}
