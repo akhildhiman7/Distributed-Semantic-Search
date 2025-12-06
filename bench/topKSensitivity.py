@@ -41,7 +41,7 @@ def main():
             "params": {"ef": topK},
             }
         start = time.time()
-        collection.search(
+        results = collection.search(
             data=[probe],
             anns_field="vector",
             param=search_params,
@@ -51,6 +51,13 @@ def main():
         end = time.time()
         delay = end - start
         delays.append(delay)
+        for hit in results[0]:
+            print(
+                f"score={hit.score:.4f} "
+                f"paper_id={hit.entity.get('paper_id')} "
+                f"categories={hit.entity.get('categories')} "
+                f"title={hit.entity.get('title')[:80]!r}"
+            )
 
     print(f"topK={str(topKValues)}")
     print(f"delays={str(delays)}")
