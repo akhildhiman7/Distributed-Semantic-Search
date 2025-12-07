@@ -1,0 +1,25 @@
+{
+  "annotations": {"list": []},
+  "description": "FastAPI and API layer metrics",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "API Requests Per Second",
+      "targets": [
+        {"expr": "sum(rate(http_server_requests_seconds_count[1m]))", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "graph",
+      "title": "API Latency p95",
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    }
+  ],
+  "schemaVersion": 27,
+  "title": "API Performance",
+  "version": 1
+}

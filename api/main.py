@@ -7,6 +7,8 @@ import time
 import os
 from typing import List
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from api.models import (
     SearchRequest, InsertRequest, PaperResponse,
     HealthResponse, InsertResponse
@@ -265,11 +267,37 @@ async def global_exception_handler(request, exc):
     )
 
 # Add prometheus metrics endpoint if needed
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi import Request
+from fastapi.responses import Response
+import time
+
+# Metrics definitions
+REQUEST_COUNT = Counter(
+    "fastapi_requests_total",
+    "Total number of requests",
+    ["method", "endpoint", "http_status"]
+)
+
+REQUEST_LATENCY = Histogram(
+    "fastapi_request_latency_seconds",
+    "Request latency in seconds",
+    ["method", "endpoint"]
+)
+
+# Middleware to measure requests and latency
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    resp_time = time.time() - start_time
+
+    REQUEST_LATENCY.labels(request.method, request.url.path).observe(resp_time)
+    REQUEST_COUNT.labels(request.method, request.url.path, response.status_code).inc()
+
+    return response
+
+# Expose /metrics endpoint in Prometheus format
 @app.get("/metrics")
 async def metrics():
-    """Metrics endpoint for monitoring"""
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "service": "paper-search-api",
-        "version": "1.0.0"
-    }
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
