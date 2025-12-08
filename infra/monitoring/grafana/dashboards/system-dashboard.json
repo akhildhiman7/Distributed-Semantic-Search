@@ -1,0 +1,25 @@
+{
+  "annotations": {"list": []},
+  "description": "Host and container system metrics from node_exporter",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "CPU Usage (all cores)",
+      "targets": [
+        {"expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "graph",
+      "title": "Memory Usage (bytes)",
+      "targets": [
+        {"expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    }
+  ],
+  "schemaVersion": 27,
+  "title": "System Metrics",
+  "version": 1
+}
