@@ -1,13 +1,15 @@
-from api.middleware import rate_limit_middleware
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import time
 import os
 import psutil
-from typing import List, Dict
+from typing import List
 
+from prometheus_client import Counter, Gauge, generate_latest, CollectorRegistry
+
+from api.middleware import rate_limit_middleware
 from api.models import (
     SearchRequest, InsertRequest, PaperResponse,
     HealthResponse, InsertResponse
@@ -35,7 +37,26 @@ app.add_middleware(
 milvus_adapter = None
 embedder = None
 
-# Metrics collection
+# ----------------------------
+# Prometheus metrics
+# ----------------------------
+registry = CollectorRegistry()
+REQUEST_COUNTER = Counter(
+    "api_requests_total", "Total API requests", ["endpoint"], registry=registry
+)
+ERROR_COUNTER = Counter(
+    "api_errors_total", "Total API errors", ["endpoint"], registry=registry
+)
+SEARCH_TIME = Gauge(
+    "api_search_time_seconds", "Time taken for search requests", registry=registry
+)
+SEARCH_RESULTS = Gauge(
+    "api_search_results_total", "Number of results returned per search", registry=registry
+)
+
+# ----------------------------
+# JSON metrics collector
+# ----------------------------
 class MetricsCollector:
     def __init__(self):
         self.start_time = time.time()
@@ -59,41 +80,37 @@ class MetricsCollector:
         self.request_counts["total"] += 1
         if endpoint in self.request_counts:
             self.request_counts[endpoint] += 1
+        REQUEST_COUNTER.labels(endpoint=endpoint).inc()
     
-    def increment_error(self):
+    def increment_error(self, endpoint: str = "unknown"):
         self.request_counts["errors"] += 1
+        ERROR_COUNTER.labels(endpoint=endpoint).inc()
     
     def record_search(self, num_results: int, search_time: float):
         self.search_stats["total_searches"] += 1
         self.search_stats["total_results_returned"] += num_results
         self.search_stats["search_times"].append(search_time)
-        
-        # Keep only last 100 search times
         if len(self.search_stats["search_times"]) > 100:
             self.search_stats["search_times"] = self.search_stats["search_times"][-100:]
-        
-        # Update average
         if self.search_stats["search_times"]:
             self.search_stats["avg_search_time"] = sum(self.search_stats["search_times"]) / len(self.search_stats["search_times"])
+        SEARCH_TIME.set(search_time)
+        SEARCH_RESULTS.set(num_results)
 
-# Global metrics collector
 metrics_collector = MetricsCollector()
 
+# ----------------------------
+# Helpers & startup
+# ----------------------------
 def get_milvus_config():
-    """Helper function to get Milvus config"""
     return MilvusConfig()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on startup"""
     global milvus_adapter, embedder
-    
     try:
-        # Initialize Milvus adapter
         config = get_milvus_config()
         milvus_adapter = MilvusAdapter(config)
-        
-        # Try to initialize embedder for search queries (optional)
         try:
             from sentence_transformers import SentenceTransformer
             model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
@@ -105,20 +122,18 @@ async def startup_event():
         except Exception as e:
             print(f"⚠️  Could not load embedder: {e}")
             embedder = None
-        
         print(f"✅ API started successfully")
         print(f"   - Collection: {config.collection_name}")
         print(f"   - Vector dimension: {config.dim}")
         print(f"   - Papers in collection: {milvus_adapter.collection.num_entities}")
-        
     except Exception as e:
         print(f"❌ Startup failed: {e}")
-        # Don't raise, let the API start without Milvus
-        # Users will get errors when trying to use endpoints
 
+# ----------------------------
+# Endpoints
+# ----------------------------
 @app.get("/")
 async def root():
-    """Root endpoint"""
     metrics_collector.increment_request("root")
     return {
         "message": "Paper Search API",
@@ -128,13 +143,13 @@ async def root():
             "insert": "POST /insert",
             "health": "GET /health",
             "stats": "GET /stats",
-            "metrics": "GET /metrics"
+            "metrics": "GET /metrics",
+            "prometheus_metrics": "GET /metrics_prometheus"
         }
     }
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    """Health check endpoint"""
     metrics_collector.increment_request("health")
     try:
         if milvus_adapter is None:
@@ -145,10 +160,8 @@ async def health():
                 num_papers=0,
                 timestamp=datetime.now()
             )
-        
         milvus_healthy = milvus_adapter.health_check()
         stats = milvus_adapter.get_stats()
-        
         return HealthResponse(
             status="healthy" if milvus_healthy else "degraded",
             milvus_connected=milvus_healthy,
@@ -157,7 +170,7 @@ async def health():
             timestamp=datetime.now()
         )
     except Exception as e:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("health")
         return HealthResponse(
             status="unhealthy",
             milvus_connected=False,
@@ -168,12 +181,10 @@ async def health():
 
 @app.get("/stats")
 async def stats():
-    """Get collection statistics"""
     metrics_collector.increment_request("stats")
     try:
         if milvus_adapter is None:
             raise HTTPException(status_code=503, detail="Milvus adapter not initialized")
-        
         stats = milvus_adapter.get_stats()
         return {
             "collection": stats["collection_name"],
@@ -182,92 +193,56 @@ async def stats():
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("stats")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/search", response_model=List[PaperResponse])
 async def search(request: SearchRequest):
-    """
-    Search for papers similar to the query
-    
-    - Query is embedded using sentence-transformers
-    - Results are ranked by semantic similarity
-    - Optional category filtering
-    """
     metrics_collector.increment_request("search")
-    
     if milvus_adapter is None:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("search")
         raise HTTPException(status_code=503, detail="Milvus not initialized")
-    
     start_time = time.time()
-    
     try:
-        # Generate embedding for query if embedder is available
         if embedder is None:
-            metrics_collector.increment_error()
+            metrics_collector.increment_error("search")
             raise HTTPException(
                 status_code=501, 
                 detail="Embedder not available. Install sentence-transformers or provide pre-computed vector."
             )
-        
         query_embedding = embedder.encode(request.query).tolist()
-        
-        # Search in Milvus
         results = milvus_adapter.search(
             vector=query_embedding,
             top_k=request.top_k,
             categories=request.categories
         )
-        
-        # Filter by minimum score if provided
         if request.min_score > 0:
             results = [r for r in results if r["score"] >= request.min_score]
-        
-        # Convert to response model
-        response = [
-            PaperResponse(**paper) for paper in results
-        ]
-        
-        # Log search metrics
+        response = [PaperResponse(**paper) for paper in results]
         elapsed = time.time() - start_time
         metrics_collector.record_search(len(response), elapsed)
-        
         print(f"🔍 Search: '{request.query[:50]}...' - {len(response)} results in {elapsed:.3f}s")
-        
         return response
-        
     except HTTPException:
-        metrics_collector.increment_error()
         raise
     except Exception as e:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("search")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.post("/insert", response_model=InsertResponse)
 async def insert(request: InsertRequest):
-    """
-    Insert a new paper into the collection
-    
-    Note: Vector must be pre-computed (384-dimensional)
-    """
     metrics_collector.increment_request("insert")
-    
     if milvus_adapter is None:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("insert")
         raise HTTPException(status_code=503, detail="Milvus not initialized")
-    
     try:
-        # Validate vector dimension
         expected_dim = get_milvus_config().dim
         if len(request.vector) != expected_dim:
-            metrics_collector.increment_error()
+            metrics_collector.increment_error("insert")
             raise HTTPException(
                 status_code=400,
                 detail=f"Vector dimension mismatch. Expected {expected_dim}, got {len(request.vector)}"
             )
-        
-        # Insert paper
         inserted_count = milvus_adapter.insert_paper(
             paper_id=request.paper_id,
             title=request.title,
@@ -275,70 +250,24 @@ async def insert(request: InsertRequest):
             categories=request.categories,
             vector=request.vector
         )
-        
         return InsertResponse(
             status="success",
             paper_id=request.paper_id,
             inserted_count=inserted_count
         )
-        
     except Exception as e:
-        metrics_collector.increment_error()
+        metrics_collector.increment_error("insert")
         raise HTTPException(status_code=500, detail=f"Insert failed: {str(e)}")
-
-@app.post("/batch_insert")
-async def batch_insert(papers: List[InsertRequest]):
-    """
-    Insert multiple papers at once
-    
-    Note: All vectors must be pre-computed
-    """
-    metrics_collector.increment_request("insert")
-    
-    if milvus_adapter is None:
-        metrics_collector.increment_error()
-        raise HTTPException(status_code=503, detail="Milvus not initialized")
-    
-    try:
-        # Convert to dictionary format
-        paper_dicts = []
-        for paper in papers:
-            paper_dicts.append({
-                "paper_id": paper.paper_id,
-                "title": paper.title,
-                "abstract": paper.abstract,
-                "categories": paper.categories,
-                "vector": paper.vector
-            })
-        
-        # Batch insert
-        total_inserted = milvus_adapter.batch_insert(paper_dicts)
-        
-        return {
-            "status": "success",
-            "total_inserted": total_inserted,
-            "message": f"Successfully inserted {total_inserted} papers"
-        }
-        
-    except Exception as e:
-        metrics_collector.increment_error()
-        raise HTTPException(status_code=500, detail=f"Batch insert failed: {str(e)}")
 
 @app.get("/metrics")
 async def metrics():
-    """Metrics endpoint for monitoring and observability"""
+    """Return detailed JSON metrics (for dashboards)."""
     metrics_collector.increment_request("metrics")
-    
     try:
-        # System metrics
         process = psutil.Process(os.getpid())
         system_memory = psutil.virtual_memory()
-        
-        # API uptime
         uptime_seconds = time.time() - metrics_collector.start_time
         uptime_hours = uptime_seconds / 3600
-        
-        # Milvus metrics if available
         milvus_metrics = {}
         if milvus_adapter:
             try:
@@ -350,14 +279,10 @@ async def metrics():
                 }
             except:
                 milvus_metrics = {"error": "Could not fetch Milvus metrics"}
-        
-        # Build response
-        response = {
+        return {
             "timestamp": datetime.now().isoformat(),
             "service": "paper-search-api",
             "version": "1.0.0",
-            
-            # System metrics
             "system": {
                 "uptime_seconds": round(uptime_seconds, 2),
                 "uptime_hours": round(uptime_hours, 2),
@@ -367,67 +292,26 @@ async def metrics():
                 "cpu_percent": round(process.cpu_percent(), 2),
                 "process_threads": process.num_threads(),
             },
-            
-            # Request metrics
-            "requests": {
-                "total": metrics_collector.request_counts["total"],
-                "by_endpoint": {
-                    "search": metrics_collector.request_counts["search"],
-                    "insert": metrics_collector.request_counts["insert"],
-                    "health": metrics_collector.request_counts["health"],
-                    "stats": metrics_collector.request_counts["stats"],
-                    "metrics": metrics_collector.request_counts["metrics"],
-                },
-                "errors": metrics_collector.request_counts["errors"],
-                "error_rate_percent": round(
-                    (metrics_collector.request_counts["errors"] / max(metrics_collector.request_counts["total"], 1)) * 100, 
-                    2
-                ),
-            },
-            
-            # Search performance metrics
-            "search_performance": {
-                "total_searches": metrics_collector.search_stats["total_searches"],
-                "total_results_returned": metrics_collector.search_stats["total_results_returned"],
-                "avg_results_per_search": round(
-                    metrics_collector.search_stats["total_results_returned"] / max(metrics_collector.search_stats["total_searches"], 1), 
-                    2
-                ),
-                "avg_search_time_ms": round(metrics_collector.search_stats["avg_search_time"] * 1000, 2),
-                "recent_search_count": len(metrics_collector.search_stats["search_times"]),
-            },
-            
-            # Milvus metrics
-            "milvus": milvus_metrics,
-            
-            # Rate limiting info
-            "rate_limiting": {
-                "enabled": True,
-                "limit_per_minute": 100,
-                "note": "Check X-RateLimit-* headers on responses"
-            }
+            "requests": metrics_collector.request_counts,
+            "search_performance": metrics_collector.search_stats,
+            "milvus": milvus_metrics
         }
-        
-        return response
-        
     except Exception as e:
-        # Fallback basic metrics if detailed collection fails
-        metrics_collector.increment_error()
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "service": "paper-search-api",
-            "version": "1.0.0",
-            "basic_metrics": {
-                "uptime_seconds": round(time.time() - metrics_collector.start_time, 2),
-                "total_requests": metrics_collector.request_counts["total"],
-                "error": f"Detailed metrics unavailable: {str(e)[:100]}"
-            }
-        }
+        metrics_collector.increment_error("metrics")
+        return {"error": str(e)}
 
+@app.get("/metrics_prometheus")
+async def metrics_prometheus():
+    """Prometheus-compatible metrics endpoint"""
+    metrics_collector.increment_request("metrics_prometheus")
+    return Response(generate_latest(registry), media_type="text/plain")
+
+# ----------------------------
+# Global exception handler
+# ----------------------------
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler"""
-    metrics_collector.increment_error()
+    metrics_collector.increment_error("global")
     return JSONResponse(
         status_code=500,
         content={"error": str(exc), "type": exc.__class__.__name__}
