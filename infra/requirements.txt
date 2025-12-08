@@ -13,3 +13,9 @@ uvicorn[standard]==0.24.0
 pydantic==2.5.0
 #sentence-transformers==2.2.2
 psutil>=5.9.0
+
+# Prometheus metrics
+prometheus_client>=0.17.0
+
+# Optional for load testing
+locust>=2.21.0
