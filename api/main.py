@@ -424,6 +424,50 @@ async def metrics():
             }
         }
 
+from fastapi import Response
+
+@app.get("/prom_metrics")
+async def prom_metrics():
+    """Prometheus-compatible metrics endpoint"""
+    metrics_collector.increment_request("metrics")
+
+    # Build Prometheus text-formatted metrics
+    lines = []
+
+    # Total request count
+    lines.append(f'paper_api_requests_total {metrics_collector.request_counts["total"]}')
+
+    # Errors
+    lines.append(f'paper_api_request_errors_total {metrics_collector.request_counts["errors"]}')
+
+    # Requests per endpoint
+    for endpoint, count in metrics_collector.request_counts.items():
+        if endpoint in ["total", "errors"]:
+            continue
+        lines.append(
+            f'paper_api_requests_by_endpoint{{endpoint="{endpoint}"}} {count}'
+        )
+
+    # Search metrics
+    s = metrics_collector.search_stats
+    lines.append(f'paper_api_search_total {s["total_searches"]}')
+    lines.append(f'paper_api_search_results_total {s["total_results_returned"]}')
+    lines.append(f'paper_api_avg_search_time_seconds {s["avg_search_time"]}')
+
+    # System-level metrics (optional)
+    process = psutil.Process(os.getpid())
+    lines.append(
+        f'paper_api_memory_mb {round(process.memory_info().rss / 1024 / 1024, 2)}'
+    )
+    lines.append(
+        f'paper_api_cpu_percent {round(process.cpu_percent(), 2)}'
+    )
+
+    # Join all results
+    prom_text = "\n".join(lines) + "\n"
+
+    return Response(content=prom_text, media_type="text/plain")
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
