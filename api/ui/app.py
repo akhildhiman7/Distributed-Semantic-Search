@@ -5,6 +5,10 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from sentence_transformers import SentenceTransformer
+
+# Initialize embedder for UI
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Page configuration
 st.set_page_config(
@@ -216,7 +220,7 @@ with tab1:
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    with st.expander("View full abstract", key=f"abstract_{i}"):
+                                    with st.expander(f"View full abstract for Paper {paper['paper_id']}"):
                                         st.write(paper["abstract"])
                                         
                                     st.divider()
@@ -240,7 +244,7 @@ with tab2:
     st.markdown('<h2 class="sub-header">Insert New Paper</h2>', unsafe_allow_html=True)
     
     st.info("""
-    **Note:** This requires a pre-computed 384-dimensional embedding vector.
+    **Note:** This required a pre-computed 384-dimensional embedding vector.
     Use the embedding generator script to create vectors from paper text.
     """)
     
@@ -271,7 +275,7 @@ with tab2:
             
             vector_input = st.text_area(
                 "Embedding Vector (384 comma-separated floats)",
-                placeholder="0.1, 0.2, 0.3, ...",
+                placeholder="Optional...",
                 height=100,
                 help="384-dimensional vector as comma-separated values"
             )
@@ -285,6 +289,8 @@ with tab2:
         
         submitted = st.form_submit_button("📤 Insert Paper", type="primary", use_container_width=True)
         
+        
+        
         if submitted:
             # Validate inputs
             errors = []
@@ -292,48 +298,43 @@ with tab2:
                 errors.append("Title is required")
             if not abstract:
                 errors.append("Abstract is required")
-            if not vector_input:
-                errors.append("Vector is required")
+            # REMOVE vector validation
             
             if errors:
                 for error in errors:
                     st.error(error)
             else:
                 try:
-                    # Parse vector
-                    vector = [float(x.strip()) for x in vector_input.split(",")]
+                    # GENERATE embedding automatically
+                    text_to_embed = f"{title} {abstract}"
+                    vector = embedder.encode(text_to_embed).tolist()
                     
-                    if len(vector) != 384:
-                        st.error(f"Vector must be 384-dimensional. Got {len(vector)} dimensions.")
-                    else:
-                        # Parse categories
-                        categories = [cat.strip() for cat in categories_input.split(",")] if categories_input else []
+                    # Parse categories
+                    categories = [cat.strip() for cat in categories_input.split(",")] if categories_input else []
+                    
+                    # Prepare payload
+                    payload = {
+                        "paper_id": int(paper_id),
+                        "title": title,
+                        "abstract": abstract,
+                        "categories": categories,
+                        "vector": vector
+                    }
+                    
+                    with st.spinner("Inserting paper..."):
+                        response = requests.post(f"{API_URL}/insert", json=payload)
                         
-                        # Prepare payload
-                        payload = {
-                            "paper_id": int(paper_id),
-                            "title": title,
-                            "abstract": abstract,
-                            "categories": categories,
-                            "vector": vector
-                        }
-                        
-                        with st.spinner("Inserting paper..."):
-                            response = requests.post(f"{API_URL}/insert", json=payload)
+                        if response.status_code == 200:
+                            st.success("✅ Paper inserted successfully!")
+                            st.balloons()
+                            st.json(response.json())
+                        elif response.status_code == 429:
+                            st.error("⏳ Rate limit exceeded!")
+                            st.json(response.json())
+                        else:
+                            st.error(f"Insert failed: {response.status_code}")
+                            st.json(response.json())
                             
-                            if response.status_code == 200:
-                                st.success("✅ Paper inserted successfully!")
-                                st.balloons()
-                                st.json(response.json())
-                            elif response.status_code == 429:
-                                st.error("⏳ Rate limit exceeded!")
-                                st.json(response.json())
-                            else:
-                                st.error(f"Insert failed: {response.status_code}")
-                                st.json(response.json())
-                                
-                except ValueError as e:
-                    st.error(f"Invalid vector format: {str(e)}")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
